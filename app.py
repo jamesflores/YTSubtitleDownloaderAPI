@@ -53,7 +53,7 @@ def get_openapi_schema():
         },
         "servers": [
             {
-                "url": request.url_root.rstrip('/')   # use the current server's URL
+                "url": request.url_root.rstrip('/').replace('http://', 'https://')   # use the current server's URL with https
             }
         ],
         "paths": {
