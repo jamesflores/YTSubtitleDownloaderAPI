@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
-from youtube_transcript_api.formatters import JSONFormatter
+from youtube_transcript_api.formatters import JSONFormatter, SRTFormatter
 from pytube import YouTube
 import os
 import logging
@@ -31,9 +31,14 @@ def hello_world():
 @limiter.limit("10 per minute")   # add a specific rate limit for this endpoint
 def get_transcript():
     youtube_url = request.args.get('url')
+    output_type = request.args.get('output', 'json').lower()  # default to 'json' if not specified
+
     if not youtube_url:
         abort(400, description="Missing YouTube URL")
     
+    if output_type not in ['json', 'srt']:
+        abort(400, description="Invalid output type. Use 'json' or 'srt'.")
+
     try:
         yt = YouTube(youtube_url)
         video_id = yt.video_id
@@ -43,9 +48,16 @@ def get_transcript():
 
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        json_transcript = JSONFormatter().format_transcript(transcript)
+        
+        if output_type == 'json':
+            formatted_transcript = JSONFormatter().format_transcript(transcript)
+            content_type = 'application/json'
+        else:  # output_type == 'srt'
+            formatted_transcript = SRTFormatter().format_transcript(transcript)
+            content_type = 'text/plain'
+
         logger.info(f"Successfully fetched transcript for video ID: {video_id}")
-        return json_transcript, 200, {'Content-Type': 'application/json'}
+        return formatted_transcript, 200, {'Content-Type': content_type}
     except (TranscriptsDisabled, NoTranscriptFound):
         logger.warning(f"Transcript not available for video ID: {video_id}")
         abort(404, description="Transcript not available for this video")
@@ -59,7 +71,7 @@ def get_openapi_schema():
         "openapi": "3.1.0",
         "info": {
             "title": "YouTube Transcript API",
-            "description": "Retrieves transcript data for YouTube videos.",
+            "description": "Retrieves transcript data for YouTube videos in JSON or SRT format.",
             "version": "v1.0.0"
         },
         "servers": [
@@ -81,6 +93,17 @@ def get_openapi_schema():
                             "schema": {
                                 "type": "string"
                             }
+                        },
+                        {
+                            "name": "output",
+                            "in": "query",
+                            "description": "The desired output format (json or srt)",
+                            "required": False,
+                            "schema": {
+                                "type": "string",
+                                "enum": ["json", "srt"],
+                                "default": "json"
+                            }
                         }
                     ],
                     "responses": {
@@ -99,11 +122,17 @@ def get_openapi_schema():
                                             }
                                         }
                                     }
+                                },
+                                "text/plain": {
+                                    "schema": {
+                                        "type": "string",
+                                        "description": "SRT formatted transcript"
+                                    }
                                 }
                             }
                         },
                         "400": {
-                            "description": "Bad request - Invalid YouTube URL"
+                            "description": "Bad request - Invalid YouTube URL or output format"
                         },
                         "404": {
                             "description": "Transcript not available for this video"

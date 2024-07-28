@@ -5,6 +5,7 @@ This Flask application provides an API to fetch transcripts from YouTube videos.
 
 ## Features
 - Fetches transcripts from YouTube videos using the video URL
+- Supports both JSON and SRT output formats
 - Implements rate limiting to prevent abuse
 - Provides a simple privacy policy
 - Offers an OpenAPI schema for easy integration
@@ -27,13 +28,15 @@ This Flask application provides an API to fetch transcripts from YouTube videos.
 
 ## Usage
 
-Send a GET request to `/api/transcript` with a `url` query parameter containing the YouTube video URL. For example:
+Send a GET request to `/api/transcript` with a `url` query parameter containing the YouTube video URL. You can also specify the output format using the `output` parameter.
+
+### JSON Output (Default)
 
 ```
 GET /api/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
 
-### Response Format
+#### Response Format (JSON)
 
 The API returns a JSON array of transcript segments. Each segment is an object containing the following fields:
 
@@ -64,7 +67,35 @@ Example response:
 ]
 ```
 
-This format allows for easy parsing and use of the transcript data, including the ability to reconstruct the timing of the full transcript.
+### SRT Output
+
+To get the transcript in SRT format, use the `output=srt` parameter:
+
+```
+GET /api/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ&output=srt
+```
+
+#### Response Format (SRT)
+
+The API returns the transcript in SubRip Subtitle (SRT) format, which is widely used for subtitles. The response will be plain text with the following structure:
+
+```
+1
+00:00:43,360 --> 00:00:49,719
+Going To Give You Up never going to let
+
+2
+00:00:46,199 --> 00:00:53,640
+you down never going to run around and
+
+3
+00:00:49,719 --> 00:00:56,120
+desert you never going to make you cry
+
+// ... more subtitle entries
+```
+
+This format is compatible with most video players and subtitle editors.
 
 ## Rate Limiting
 The API implements rate limiting to ensure fair usage:
@@ -74,7 +105,7 @@ The API implements rate limiting to ensure fair usage:
 This application does not store any personal data. For more details, see the `/privacy-policy` endpoint.
 
 ## Custom GPT Integration
-I wrote this API to use it in my custom GPT "Church Service Timestamp Generator". This GPT can analyse church service videos and generate timestamped outlines. You can access it here: [Church Service Timestamp Generator](https://chatgpt.com/g/g-sv1MkzVrI-church-service-timestamp-generator)
+I wrote this API to use it in my custom GPT "Church Service Timestamp Generator". This GPT can analyze church service videos and generate timestamped outlines. You can access it here: [Church Service Timestamp Generator](https://chatgpt.com/g/g-sv1MkzVrI-church-service-timestamp-generator)
 
 ## License
 This project is licensed under the MIT License.
