@@ -42,6 +42,74 @@ def get_transcript():
         logger.error(f"An error occurred while fetching transcript for video ID {video_id}: {str(e)}")
         abort(500, description=f"An error occurred: {str(e)}")
 
+@app.route('/openapi.json', methods=['GET'])
+def get_openapi_schema():
+    schema = {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "YouTube Transcript API",
+            "description": "Retrieves transcript data for YouTube videos.",
+            "version": "v1.0.0"
+        },
+        "servers": [
+            {
+                "url": request.url_root.rstrip('/')   # use the current server's URL
+            }
+        ],
+        "paths": {
+            "/api/transcript": {
+                "get": {
+                    "description": "Get transcript for a specific YouTube video",
+                    "operationId": "GetYouTubeTranscript",
+                    "parameters": [
+                        {
+                            "name": "url",
+                            "in": "query",
+                            "description": "The full URL of the YouTube video",
+                            "required": True,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Successful response",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "text": {"type": "string"},
+                                                "start": {"type": "number"},
+                                                "duration": {"type": "number"}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Bad request - Invalid YouTube URL"
+                        },
+                        "404": {
+                            "description": "Transcript not available for this video"
+                        },
+                        "500": {
+                            "description": "Internal server error"
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {}
+        }
+    }
+    return jsonify(schema)
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
