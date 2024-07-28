@@ -26,10 +26,45 @@ This Flask application provides an API to fetch transcripts from YouTube videos.
    ```
 
 ## Usage
+
 Send a GET request to `/api/transcript` with a `url` query parameter containing the YouTube video URL. For example:
+
 ```
 GET /api/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
+
+### Response Format
+
+The API returns a JSON array of transcript segments. Each segment is an object containing the following fields:
+
+- `text`: The transcribed text for this segment
+- `start`: The start time of the segment in seconds
+- `duration`: The duration of the segment in seconds
+
+Example response:
+
+```json
+[
+    {
+        "text": "Going To Give You Up never going to let",
+        "start": 43.36,
+        "duration": 6.359
+    },
+    {
+        "text": "you down never going to run around and",
+        "start": 46.199,
+        "duration": 7.441
+    },
+    {
+        "text": "desert you never going to make you cry",
+        "start": 49.719,
+        "duration": 6.401
+    },
+    // ... more segments
+]
+```
+
+This format allows for easy parsing and use of the transcript data, including the ability to reconstruct the timing of the full transcript.
 
 ## Rate Limiting
 The API implements rate limiting to ensure fair usage:
