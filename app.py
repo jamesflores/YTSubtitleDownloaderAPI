@@ -3,14 +3,13 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
-from youtube_transcript_api.formatters import JSONFormatter, SRTFormatter
+from youtube_transcript_api.formatters import JSONFormatter, SRTFormatter, TextFormatter
 from pytube import YouTube
 import os
 import logging
 
 app = Flask(__name__)
 CORS(app)
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["10 per minute"],
     storage_uri="memory://"
 )
 
@@ -36,8 +35,8 @@ def get_transcript():
     if not youtube_url:
         abort(400, description="Missing YouTube URL")
     
-    if output_type not in ['json', 'srt']:
-        abort(400, description="Invalid output type. Use 'json' or 'srt'.")
+    if output_type not in ['json', 'srt', 'text']:
+        abort(400, description="Invalid output type. Use 'json', 'srt', or 'text'.")
 
     try:
         yt = YouTube(youtube_url)
@@ -52,8 +51,11 @@ def get_transcript():
         if output_type == 'json':
             formatted_transcript = JSONFormatter().format_transcript(transcript)
             content_type = 'application/json'
-        else:  # output_type == 'srt'
+        elif output_type == 'srt':
             formatted_transcript = SRTFormatter().format_transcript(transcript)
+            content_type = 'text/plain'
+        else:  # output_type == 'text'
+            formatted_transcript = TextFormatter().format_transcript(transcript)
             content_type = 'text/plain'
 
         logger.info(f"Successfully fetched transcript for video ID: {video_id}")
@@ -71,8 +73,8 @@ def get_openapi_schema():
         "openapi": "3.1.0",
         "info": {
             "title": "YouTube Transcript API",
-            "description": "Retrieves transcript data for YouTube videos in JSON or SRT format.",
-            "version": "v1.0.0"
+            "description": "Retrieves transcript data for YouTube videos in JSON, SRT, or plain text format.",
+            "version": "v1.1.0"
         },
         "servers": [
             {
@@ -97,11 +99,11 @@ def get_openapi_schema():
                         {
                             "name": "output",
                             "in": "query",
-                            "description": "The desired output format (json or srt)",
+                            "description": "The desired output format (json, srt, or text)",
                             "required": False,
                             "schema": {
                                 "type": "string",
-                                "enum": ["json", "srt"],
+                                "enum": ["json", "srt", "text"],
                                 "default": "json"
                             }
                         }
@@ -126,7 +128,7 @@ def get_openapi_schema():
                                 "text/plain": {
                                     "schema": {
                                         "type": "string",
-                                        "description": "SRT formatted transcript"
+                                        "description": "SRT or plain text formatted transcript"
                                     }
                                 }
                             }
