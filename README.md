@@ -1,11 +1,12 @@
 # YouTube Transcript API
 
 ## Overview
-This Flask application provides an API to fetch transcripts from YouTube videos. It was created to support the custom GPT "Church Service Timestamp Generator" available at [https://chatgpt.com/g/g-sv1MkzVrI-church-service-timestamp-generator](https://chatgpt.com/g/g-sv1MkzVrI-church-service-timestamp-generator).
+This Flask application provides an API to fetch transcripts from YouTube videos. It was created to allow it for use as an action in custom GPTs.
 
 ## Features
 - Fetches transcripts from YouTube videos using the video URL
-- Supports both JSON and SRT output formats
+- Supports JSON, SRT, and plain text output formats
+- Offers an optimization option to reduce transcript size
 - Implements rate limiting to prevent abuse
 - Provides a simple privacy policy
 - Offers an OpenAPI schema for easy integration
@@ -28,7 +29,13 @@ This Flask application provides an API to fetch transcripts from YouTube videos.
 
 ## Usage
 
-Send a GET request to `/api/transcript` with a `url` query parameter containing the YouTube video URL. You can also specify the output format using the `output` parameter.
+Send a GET request to `/api/transcript` with a `url` query parameter containing the YouTube video URL. You can also specify the output format using the `output` parameter and enable optimization with the `optimize` parameter.
+
+### Parameters
+
+- `url` (required): The YouTube video URL
+- `output` (optional): The output format. Can be 'json' (default), 'srt', or 'text'
+- `optimize` (optional): Set to 'true' to enable transcript optimization
 
 ### JSON Output (Default)
 
@@ -97,9 +104,38 @@ desert you never going to make you cry
 
 This format is compatible with most video players and subtitle editors.
 
+### Plain Text Output
+
+To get the transcript in plain text format, use the `output=text` parameter:
+
+```
+GET /api/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ&output=text
+```
+
+#### Response Format (Text)
+
+The API returns the transcript as plain text, with each line representing a segment of the transcript:
+
+```
+Going To Give You Up never going to let
+you down never going to run around and
+desert you never going to make you cry
+// ... more lines
+```
+
+### Optimization
+
+To optimize the transcript and reduce its size, add the `optimize=true` parameter:
+
+```
+GET /api/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ&optimize=true
+```
+
+This option removes repetitive elements and combines consecutive entries, resulting in a more compact transcript.
+
 ## Rate Limiting
 The API implements rate limiting to ensure fair usage:
-- 10 requests per minute for the `/api/transcript` endpoint
+- 10 requests per minute per IP address for all endpoints
 
 ## Privacy
 This application does not store any personal data. For more details, see the `/privacy-policy` endpoint.
