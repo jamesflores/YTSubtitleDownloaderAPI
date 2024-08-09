@@ -7,6 +7,26 @@ from youtube_transcript_api.formatters import JSONFormatter, SRTFormatter, TextF
 from pytube import YouTube
 import os
 import logging
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+sentry_dsn = os.environ.get('SENTRY_DSN')
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration()],
+        # Disable performance monitoring
+        traces_sample_rate=0.0,
+        # Only send errors, not warnings or info events
+        send_default_pii=False,
+        before_send=lambda event, hint: event if event['level'] == 'error' else None
+    )
+else:
+    print("Warning: SENTRY_DSN not set. Error reporting will be disabled.")
 
 app = Flask(__name__)
 CORS(app)
