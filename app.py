@@ -10,20 +10,25 @@ import logging
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from dotenv import load_dotenv
-
+from werkzeug.exceptions import HTTPException
+import json
 
 load_dotenv()
+
+def traces_sampler(sampling_context):
+    # Capture all transactions for error responses
+    if sampling_context.get("wsgi_environ", {}).get("STATUS", "200").startswith("4") or \
+       sampling_context.get("wsgi_environ", {}).get("STATUS", "200").startswith("5"):
+        return 1.0
+    return 0.0
 
 sentry_dsn = os.environ.get('SENTRY_DSN')
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
         integrations=[FlaskIntegration()],
-        # Disable performance monitoring
-        traces_sample_rate=0.0,
-        # Only send errors, not warnings or info events
-        send_default_pii=False,
-        before_send=lambda event, hint: event if event['level'] == 'error' else None
+        traces_sampler=traces_sampler,
+        send_default_pii=False
     )
 else:
     print("Warning: SENTRY_DSN not set. Error reporting will be disabled.")
@@ -47,15 +52,19 @@ def hello_world():
     return jsonify(message="Hello, World!")
 
 @app.route('/api/transcript', methods=['GET'])
-@limiter.limit("10 per minute")   # add a specific rate limit for this endpoint
+@limiter.limit("10 per minute")
 def get_transcript():
     youtube_url = request.args.get('url')
-    output_type = request.args.get('output', 'json').lower()  # default to 'json' if not specified
+    output_type = request.args.get('output', 'json').lower()
 
     if not youtube_url:
+        logger.error('Missing YouTube URL')
+        sentry_sdk.capture_message("Missing YouTube URL", level="error")
         abort(400, description="Missing YouTube URL")
     
     if output_type not in ['json', 'srt', 'text']:
+        logger.error(f'Invalid output type: {output_type}')
+        sentry_sdk.capture_message(f"Invalid output type: {output_type}", level="error")
         abort(400, description="Invalid output type. Use 'json', 'srt', or 'text'.")
 
     try:
@@ -63,6 +72,7 @@ def get_transcript():
         video_id = yt.video_id
     except Exception as e:
         logger.error(f"Error parsing YouTube URL: {str(e)}")
+        sentry_sdk.capture_exception(e)
         abort(400, description="Invalid YouTube URL")
 
     try:
@@ -80,11 +90,21 @@ def get_transcript():
 
         logger.info(f"Successfully fetched transcript for video ID: {video_id}")
         return formatted_transcript, 200, {'Content-Type': content_type}
-    except (TranscriptsDisabled, NoTranscriptFound):
+    except (TranscriptsDisabled, NoTranscriptFound) as e:
         logger.warning(f"Transcript not available for video ID: {video_id}")
-        abort(404, description="Transcript not available for this video")
+        error_details = {
+            "code": 404,
+            "name": "Transcript Not Found",
+            "description": "Transcript not available for this video",
+            "video_id": video_id,
+            "error_type": e.__class__.__name__,
+            "error_message": str(e)
+        }
+        sentry_sdk.capture_message(f"Transcript not available: {json.dumps(error_details)}", level="error")
+        return jsonify(error_details), 404
     except Exception as e:
         logger.error(f"An error occurred while fetching transcript for video ID {video_id}: {str(e)}")
+        sentry_sdk.capture_exception(e)
         abort(500, description=f"An error occurred: {str(e)}")
 
 @app.route('/openapi.json', methods=['GET'])
@@ -98,7 +118,7 @@ def get_openapi_schema():
         },
         "servers": [
             {
-                "url": request.url_root.rstrip('/').replace('http://', 'https://')   # use the current server's URL with https
+                "url": request.url_root.rstrip('/').replace('http://', 'https://')
             }
         ],
         "paths": {
@@ -175,9 +195,32 @@ def get_openapi_schema():
     }
     return jsonify(schema)
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify(error="Rate limit exceeded", description=str(e.description)), 429
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, HTTPException):
+        response = e.get_response()
+        error_details = {
+            "code": e.code,
+            "name": e.name,
+            "description": e.description,
+        }
+        response.data = json.dumps(error_details)
+        response.content_type = "application/json"
+    else:
+        sentry_sdk.capture_exception(e)
+        error_details = {
+            "code": 500,
+            "name": "Internal Server Error",
+            "description": "An unexpected error occurred",
+            "error_type": e.__class__.__name__,
+            "error_message": str(e)
+        }
+        response = jsonify(error_details)
+        response.status_code = 500
+    
+    # Log all errors to Sentry
+    sentry_sdk.capture_message(f"Error occurred: {json.dumps(error_details)}", level="error")
+    return response
 
 @app.route('/privacy-policy', methods=['GET'])
 def privacy_policy():
